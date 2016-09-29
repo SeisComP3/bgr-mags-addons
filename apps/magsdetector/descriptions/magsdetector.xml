@@ -1,0 +1,556 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<seiscomp>
+	<module name="magsdetector" category="Processing">
+		<description>Event detector based on waveform cross-correlation.</description>
+		<command-line>
+			<group name="Generic">
+				<optionReference>generic#help</optionReference>
+				<optionReference>generic#version</optionReference>
+				<optionReference>generic#config-file</optionReference>
+				<optionReference>generic#plugins</optionReference>
+				<optionReference>generic#daemon</optionReference>
+				<optionReference>generic#auto-shutdown</optionReference>
+				<optionReference>generic#shutdown-master-module</optionReference>
+				<optionReference>generic#shutdown-master-username</optionReference>
+			</group>
+
+			<group name="Verbosity">
+				<optionReference>verbosity#verbosity</optionReference>
+				<optionReference>verbosity#v</optionReference>
+				<optionReference>verbosity#quiet</optionReference>
+				<optionReference>verbosity#component</optionReference>
+				<optionReference>verbosity#syslog</optionReference>
+				<optionReference>verbosity#lockfile</optionReference>
+				<optionReference>verbosity#console</optionReference>
+				<optionReference>verbosity#debug</optionReference>
+				<optionReference>verbosity#log-file</optionReference>
+			</group>
+
+			<group name="Messaging">
+				<optionReference>messaging#user</optionReference>
+				<optionReference>messaging#host</optionReference>
+				<optionReference>messaging#timeout</optionReference>
+				<optionReference>messaging#primary-group</optionReference>
+				<optionReference>messaging#subscribe-group</optionReference>
+				<optionReference>messaging#encoding</optionReference>
+				<optionReference>messaging#start-stop-msg</optionReference>
+			</group>
+
+			<group name="Database">
+				<optionReference>database#db-driver-list</optionReference>
+				<optionReference>database#database</optionReference>
+				<optionReference>database#config-module</optionReference>
+				<optionReference>database#inventory-db</optionReference>
+				<option flag="" long-flag="db-disable" argument="" publicID="database#db-disable">
+					<description>Do not use the database at all</description>
+				</option>
+			</group>
+
+			<group name="Records">
+				<optionReference>records#record-driver-list</optionReference>
+				<optionReference>records#record-url</optionReference>
+				<optionReference>records#record-file</optionReference>
+				<optionReference>records#record-type</optionReference>
+			</group>
+
+			<group name="Mode">
+				<option flag="" long-flag="offline">
+					<description>Do not connect to a messaging system.</description>
+				</option>
+				<option flag="" long-flag="test">
+					<description>
+					Runs the detector without sending any objects to the messaging system.
+					</description>
+				</option>
+				<option flag="" long-flag="dump-fit">
+					<description>
+					Dumps the fit function of each master event processed continuously.
+					Useful for testing.
+					Both the overall fit and the channel fits are dumped in separate
+					files. The overall fit goes into [event.name].fit whereas the
+					channel fits go into [event.name]-[net.sta.loc.cha].fit.
+					The overall fit plot file is using 3 columns: counter, value, timestamp.
+					The channel fit plot file is using 4 columns: counter, single trace fit,
+					trace fit contribution to overall fit, timestamp.
+					</description>
+				</option>
+			</group>
+		</command-line>
+		<configuration>
+			<group name="filter">
+				<parameter name="order" type="int" default="4">
+					<description>
+					Specifies the filter order. Can be overridden per
+					master event.
+					</description>
+				</parameter>
+				<parameter name="loFreq" type="double" default="10" unit="Hz">
+					<description>
+					Specifies the frequency of the general hi-pass filter.
+					If this parameter is equal to 0 the hi-pass filter is not used.
+					Can be overridden per master event.
+					</description>
+				</parameter>
+				<parameter name="hiFreq" type="double" default="40" unit="Hz">
+					<description>
+					Specifies the frequency of the general lo-pass filter.
+					If this parameter is equal to 0 the lo-pass filter is not used.
+					Can be overridden per master event.
+					</description>
+				</parameter>
+				<parameter name="bandStop" type="boolean" default="false">
+					<description>
+					Enables a bandstop filter at 50Hz and 100Hz.
+					Can be overridden per master event.
+					</description>
+				</parameter>
+			</group>
+			<group name="envelope">
+				<parameter name="enable" type="boolean" default="true">
+					<description>
+					Compute envelope to be used for fitting the master events.
+					Can be overridden per master event.
+					</description>
+				</parameter>
+				<parameter name="samplingFrequency" type="int" default="0" unit="Hz">
+					<description>
+					Defines the target sampling frequency of the envelope
+					(0 = no resampling).
+					Can be overridden per master event.
+					</description>
+				</parameter>
+				<parameter name="resampleAverage" type="boolean" default="false">
+					<description>
+					Enables averaging of neighbor samples when downsampling. The
+					width of the kernel is the ratio of SR/samplingFrequency.
+					Can be overridden per master event.
+					</description>
+				</parameter>
+				<parameter name="hiFreq" type="double" default="20" unit="Hz">
+					<description>
+					Frequency of lowpass for smoothing the envelope (0 = no filter).
+					Can be overridden per master event.
+					</description>
+				</parameter>
+				<parameter name="acausal" type="boolean" default="false">
+					<description>
+					Defines if the envelope function is done in the frequency domain
+					with hilbert transformation (true) or recursive (false)
+					Can be overridden per master event.
+					</description>
+				</parameter>
+			</group>
+			<group name="processing">
+				<parameter name="acausal" type="boolean" default="false">
+					<description>
+					Defines whether the waveform processing (filtering, envelope, ...) is
+					done in the frequency domain (true) or recursive in the time domain (false).
+					Processing in time domain is much faster but less accurate.
+					Can be overridden per master event.
+					</description>
+				</parameter>
+				<parameter name="logarithm" type="boolean" default="false">
+					<description>
+					Enables usage of the logarithm of the final trace (either
+					waveforms or envelope).
+					Can be overridden per master event.
+					</description>
+				</parameter>
+				<parameter name="bufferSize" type="int" default="600" unit="s">
+					<description>
+					Defines the data buffer size in seconds (integer values).
+					The default is 10 minutes (600 seconds). This parameter is
+					important when testing with record volumes where records are
+					not ordered by time.
+					</description>
+				</parameter>
+				<parameter name="interval" type="int" default="0" unit="s">
+					<description>
+					Defines the processing interval in seconds (integer values).
+					If records are received it will process the data every n
+					seconds not more often. 0 disables the interval and starts
+					processing whenever a new record is received and enough data
+					are available.
+					</description>
+				</parameter>
+				<parameter name="maximumLatency" type="double" default="10" unit="s">
+					<description>
+					Defines the maximum data latency in seconds tolerated by the
+					detector. If data latency is higher than this value
+					processing is triggered without this particular channel.
+					</description>
+				</parameter>
+				<parameter name="normalization" type="string" default="total">
+					<description>
+					Flag for normalization: trace, total.
+					</description>
+				</parameter>
+				<parameter name="maximumStepFrequency" type="int" default="0">
+					<description>
+					The maximum frequency of processing steps per time window.
+					If the data sampling frequency is much higher this parameter
+					reduces processing time by increasing the time steps. A value
+					of zero derives the time steps from the datas or envelopes
+					sampling frequency.
+					</description>
+				</parameter>
+			</group>
+			<group name="detector">
+				<parameter name="threshold" type="double" default="0.55">
+					<description>
+					Detector threshold to search for maximum to declare an event.
+					</description>
+				</parameter>
+				<parameter name="channelThreshold" type="double" default="0.55">
+					<description>
+					Detectors minimum channel fit to be used for matching with
+					a master event.
+					</description>
+				</parameter>
+				<parameter name="window" type="double" default="2" unit="s">
+					<description>
+					Length of time window (in s) to search for maximum after trigger.
+					</description>
+				</parameter>
+				<parameter name="minimumStationRatio" type="int" default="" unit="percent">
+					<description>
+					Minimum ratio in percent of matches stations vs. stations
+					in master event.
+					</description>
+				</parameter>
+				<parameter name="minimumChannelRatio" type="int" default="" unit="percent">
+					<description>
+					Minimum ratio in percent of matches overall channels vs.
+					channels in master event.
+					</description>
+				</parameter>
+				<parameter name="minimumProcessingWindow" type="double" default="0" unit="s">
+					<description>
+					Sets the minimum processing time window length in seconds to
+					minimize processing steps on each record arrival. 0 processes
+					the data as fast as possible.
+					</description>
+				</parameter>
+				<parameter name="publicationTimeout" type="int" default="10" unit="s">
+					<description>
+					If event groups are used and an event is declared which still
+					needs to wait for all other events in the group to be processed
+					this timeout is used to publish the best event of this group
+					after a certain amount of time regardless of unprocessed events
+					in the group. A negative value disables this feature and a
+					queued event never times out.
+					</description>
+				</parameter>
+			</group>
+			<group name="output">
+				<group name="waveforms">
+					<parameter name="enable" type="boolean" default="false">
+						<description>
+						Defines if each processed event is dumped to MiniSEED
+						for e.g. debugging reasons. Also all data that are
+						processed after the trigger is reached and withing the
+						processing time window (detector.window) is dumped.
+						</description>
+					</parameter>
+					<parameter name="mseed" type="boolean" default="false">
+						<description>
+						Defines if each time step after a trigger within
+						detector.window is saved as multiplexed MiniSEED file
+						which contains all channels.
+						</description>
+					</parameter>
+					<parameter name="path" type="string" default="@LOGDIR@/magsdetector/waveforms">
+						<description>
+						Defines the waveform output path. A subdirectory for each
+						master event (by its name) is created.
+						</description>
+					</parameter>
+				</group>
+				<group name="fit">
+					<parameter name="enable" type="boolean" default="false">
+						<description>
+						Defines if the fit function for an event and each channel is dumped to
+						output.waveforms.path. The fit function starts at the trigger and
+						ends after trigger+detector.window.
+						The naming convention is date-event.fit and data-[channel.id].fit.
+						The first column contains the timestamp and the second column the fit.
+						The channel fit functions include additionally the fit contribution to
+						the event in the 3rd column and the weight with respect to the overall fit.
+						</description>
+					</parameter>
+				</group>
+				<group name="events">
+					<parameter name="file" type="string">
+						<description>
+						Define output file for matched events. Each match creates a new line
+						with format yyyy mm dd HH MM SS.FFF Lat Long Mag city CF usedPhases (cha:fit, ...).
+						If not set no event file is created.
+						</description>
+					</parameter>
+				</group>
+				<group name="fit">
+					<parameter name="enable" type="boolean" default="false">
+						<description>
+						Defines if the fit function for an event and each channel is dumped to
+						output.waveforms.path. The fit function starts at the trigger and
+						ends after trigger+detector.window.
+						The naming convention is date-event.fit and data-[channel.id].fit.
+						The first column contains the timestamp and the second column the fit.
+						The channel fit functions include additionally the fit contribution to
+						the event in the 3rd column and the weight with respect to the overall fit.
+						</description>
+					</parameter>
+				</group>
+			</group>
+			<group name="event">
+				<struct type="Master event" link = "events">
+					<description>
+					Defines a master event. Processing options such as filter
+					and envelope parameters can be overridden otherwise the
+					global values are used.
+					</description>
+					<parameter name="negative" type="boolean" default="false">
+						<description>
+						If enabled this event is a negative event. Negative event
+						detections don't create an origin. They can be used to stop
+						false alarms.
+						</description>
+					</parameter>
+					<parameter name="baseID" type="string">
+						<description>
+						Defines the database eventID to use. This will extract
+						the origin time and the magnitude. Furthermore arrivals
+						and picks are collected which are copied to the final
+						origin. Using this parameter requires a database connection.
+						</description>
+					</parameter>
+					<parameter name="xml" type="string">
+						<description>
+						Defines an event parameters XML which is used to extract
+						event information: origin time and magnitude. It and makes this parameters
+						optional. Furthermore arrivals and picks are collected
+						which are copied to the final origin.
+						</description>
+					</parameter>
+					<parameter name="time" type="string">
+						<description>
+						Defines the start time of the event in format &quot;%F %T.%f&quot;.
+						This time is used as start time to extract the data.
+						If either baseID or xml is given this time must match the
+						extracted origin time otherwise an error is reported.
+						When defining either baseID or xml this parameter is
+						not required but can be used for further validation.
+						</description>
+					</parameter>
+					<parameter name="noiseBegin" type="double" unit="s">
+						<description>
+						Defines the begin of the noise window if envelope is
+						enabled. The mean is computed from the noise window
+						and removed from the whole envelope.
+						This value is relativ to time. If not given
+						then noiseBegin is set to signalBegin.
+						The minimum mean of both defined noise windows is used
+						finally.
+						</description>
+					</parameter>
+					<parameter name="noiseEnd" type="double" unit="s">
+						<description>
+						Defines the end of the noise window if envelope is enabled.
+						The mean is computed from the noise window and removed
+						from the whole envelope.
+						This value is relativ to time. If not given then noiseEnd
+						is set to signalBegin + 1.
+						The minimum mean of both defined noise windows is used
+						finally.
+						</description>
+					</parameter>
+					<parameter name="noise2Begin" type="double" unit="s">
+						<description>
+						Defines the begin of the second noise window if envelope
+						is enabled. This value is relativ to time. If not given
+						then noise2Begin is set to signalBegin.
+						The minimum mean of both defined noise windows is used
+						finally. This parameter is optional and set to noiseBegin
+						if not given.
+						</description>
+					</parameter>
+					<parameter name="noise2End" type="double" unit="s">
+						<description>
+						Defines the end of the second noise window if envelope
+						is enabled. This value is relativ to time. If not given
+						then noiseEnd is set to signalBegin + 1.
+						The minimum mean of both defined noise windows is used
+						finally. This parameter is optional and set to noiseEnd
+						if not given.
+						</description>
+					</parameter>
+					<parameter name="signalBegin" type="double" unit="s">
+						<description>
+						Defines the begin of the signal window used for
+						cross-correlation.
+						</description>
+					</parameter>
+					<parameter name="signalEnd" type="double" unit="s">
+						<description>
+						Defines the end of the signal window used for
+						cross-correlation.
+						</description>
+					</parameter>
+					<parameter name="place" type="string">
+						<description>
+						A string of the place of the event. Is used when adding
+						a line to the event file.
+						</description>
+					</parameter>
+					<parameter name="group" type="string">
+						<description>
+						Defines a group name. Only one event of a group can occur
+						at one time. If the group is empty the event is independent
+						and forms a group containing only this event.
+						</description>
+					</parameter>
+					<parameter name="magnitude" type="double">
+						<description>
+						Defines the reference magnitude which is used to compute
+						the magnitude of the continuous data.
+						When defining either baseID or xml this parameter is
+						not required but can be used to override the extracted
+						magnitude.
+						</description>
+					</parameter>
+					<parameter name="deltaM" type="double">
+						<description>
+						Defines a magnitude offset which is applied to the final
+						magnitude. This parameter is optional.
+						</description>
+					</parameter>
+					<parameter name="latitude" type="double" unit="deg">
+						<description>
+						Defines the latitude of the master event which is taken
+						as it is if a match is found.
+						</description>
+					</parameter>
+					<parameter name="longitude" type="double" unit="deg">
+						<description>
+						Defines the longitude of the master event which is taken
+						as it is if a match is found.
+						</description>
+					</parameter>
+					<parameter name="depth" type="double" unit="km">
+						<description>
+						Defines the depth of the master event which is taken
+						as it is if a match is found.
+						</description>
+					</parameter>
+					<parameter name="data" type="string">
+						<description>
+						Defines the data URI for fetching the waveforms. The format
+						is equal to the --record-url parameter.
+						</description>
+					</parameter>
+					<group name="filter">
+						<parameter name="order" type="int">
+							<description>
+							Specifies the filter order.
+							If not given the global settings are used.
+							</description>
+						</parameter>
+						<parameter name="loFreq" type="double" unit="Hz">
+							<description>
+							Specifies the frequency of the general hi-pass filter.
+							If this parameter is equal to 0 the hi-pass filter is not used.
+							If not given the global settings are used.
+							</description>
+						</parameter>
+						<parameter name="hiFreq" type="double" unit="Hz">
+							<description>
+							Specifies the frequency of the general lo-pass filter.
+							If this parameter is equal to 0 the lo-pass filter is not used.
+							If not given the global settings are used.
+							</description>
+						</parameter>
+						<parameter name="bandStop" type="boolean">
+							<description>
+							Enables a bandstop filter at 50Hz and 100Hz.
+							If not given the global settings are used.
+							</description>
+						</parameter>
+					</group>
+					<group name="envelope">
+						<parameter name="enable" type="boolean">
+							<description>
+							Compute envelope to be used for fitting the master events.
+							If not given the global settings are used.
+							</description>
+						</parameter>
+						<parameter name="samplingFrequency" type="int" unit="Hz">
+							<description>
+							Defines the target sampling frequency of the envelope
+							(0 = no resampling).
+							If not given the global settings are used.
+							</description>
+						</parameter>
+						<parameter name="resampleAverage" type="boolean" default="false">
+							<description>
+							Enables averaging of neighbor samples when downsampling. The
+							width of the kernel is the ratio of SR/samplingFrequency.
+							If not given the global settings are used.
+							</description>
+						</parameter>
+						<parameter name="hiFreq" type="double" unit="Hz">
+							<description>
+							Frequency of lowpass for smoothing the envelope (0 = no filter).
+							If not given the global settings are used.
+							</description>
+						</parameter>
+						<parameter name="acausal" type="boolean">
+							<description>
+							Defines if the envelope function is done in the frequency domain
+							with hilbert transformation (true) or recursive (false)
+							If not given the global settings are used.
+							</description>
+						</parameter>
+					</group>
+					<group name="processing">
+						<parameter name="enable" type="boolean" default="true">
+							<description>
+							Enables or disables processing of master event data. If disabled
+							the data is used as provided. Incoming data are processed in
+							any way. If disabled the provided data must have been processed
+							the same way as the current configuration.
+							</description>
+						</parameter>
+						<parameter name="acausal" type="boolean">
+							<description>
+							Defines whether the waveform processing (filtering, envelope, ...) is
+							done in the frequency domain (true) or recursive in the time domain (false).
+							Processing in time domain is much faster but less accurate.
+							If not given the global settings are used.
+							</description>
+						</parameter>
+						<parameter name="logarithm" type="boolean">
+							<description>
+							Enables usage of the logarithm of the final trace (either
+							waveforms or envelope).
+							If not given the global settings are used.
+							</description>
+						</parameter>
+					</group>
+				</struct>
+			</group>
+			<parameter name="channels" type="list:string">
+				<description>
+				Defines the data channels to be used as list of stream codes.
+				Using full channel codes (3 characters) will use only this
+				channel, defining 2 characters will make use of all 3
+				components, e.g. AB.STA01..HHZ vs. AB.STA01..HH
+				</description>
+			</parameter>
+			<parameter name="events" type="list:string">
+				<description>
+				Defines the master events. It is a list of event identifiers.
+				</description>
+			</parameter>
+		</configuration>
+	</module>
+</seiscomp>
