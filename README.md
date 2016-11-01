@@ -29,3 +29,8 @@
 * Developed by gempa GmbH                                                  *
 ****************************************************************************
 </pre>
+**Description**
+
+The *magsdetector* detects events by finding similarities in defined master events based on cross-correlation of waveforms or envelopes. An event (origin) is declared if the waveform fit is above a configured threshold. Location and depth are taken from the master events whereas time is taken from the time window currently processed and magnitude is computed from the ratio of the master event PGV to the continuous PGV.
+
+It can be ran in realtime or offline.
