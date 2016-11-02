@@ -34,3 +34,13 @@
 The *magsdetector* detects events by finding similarities in defined master events based on cross-correlation of waveforms or envelopes. An event (origin) is declared if the waveform fit is above a configured threshold. Location and depth are taken from the master events whereas time is taken from the time window currently processed and magnitude is computed from the ratio of the master event PGV to the continuous PGV.
 
 It can be ran in realtime or offline.
+
+**Compile**
+
+In order to use this module the sources have to be compiled to an executable. Merge them into the Seiscomp3 sources and compile Seiscomp3 as usual.
+<pre>
+# merge bgr-mags-addons and Seiscomp3
+git clone https://github.com/SeisComP3/seiscomp3.git
+cd seiscomp3
+git submodule add -f https://github.com/SeisComP3/bgr-mags-addons.git src/bgr
+</pre>
