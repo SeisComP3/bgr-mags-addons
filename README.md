@@ -37,7 +37,7 @@ It can be ran in realtime or offline.
 
 **Compile**
 
-In order to use this module the sources have to be compiled to an executable. Merge them into the Seiscomp3 sources and compile Seiscomp3 as usual.
+In order to use this module the sources have to be compiled to an executable. Merge them into the Seiscomp3 sources and compile Seiscomp3 as usual. Please refer to https://github.com/SeisComP3/seiscomp3#compiling
 <pre>
 # merge bgr-mags-addons and Seiscomp3
 git clone https://github.com/SeisComP3/seiscomp3.git sc3-src
