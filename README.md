@@ -39,11 +39,8 @@ It can be ran in realtime or offline.
 
 In order to use this module the sources have to be compiled to an executable. Merge them into the Seiscomp3 sources and compile Seiscomp3 as usual.
 <pre>
-# use seperate dir for compiling
-mkdir install
-cd install
 # merge bgr-mags-addons and Seiscomp3
-git clone https://github.com/SeisComP3/seiscomp3.git
-cd seiscomp3
+git clone https://github.com/SeisComP3/seiscomp3.git sc3-src
+cd sc3-src
 git submodule add -f https://github.com/SeisComP3/bgr-mags-addons.git src/bgr
 </pre>
