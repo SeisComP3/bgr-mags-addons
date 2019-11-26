@@ -1106,7 +1106,7 @@ bool Detector::prepareTrace(Trace &trace, const WaveParams &params, double *pgv)
 			// Copy back data
 			if ( numZeros > 0 ) {
 				data = DoubleArray::Cast(trace.data());
-				memcpy(data->typedData(), tmp->typedData() + numZeros, data->size()*data->bytes());
+				memcpy(data->typedData(), tmp->typedData() + numZeros, data->size()*data->elementSize());
 			}
 
 			if ( params.processingLog ) log(*data);
@@ -1117,7 +1117,7 @@ bool Detector::prepareTrace(Trace &trace, const WaveParams &params, double *pgv)
 			// Copy back data
 			if ( numZeros > 0 ) {
 				data = DoubleArray::Cast(trace.data());
-				memcpy(data->typedData(), tmp->typedData() + numZeros, data->size()*data->bytes());
+				memcpy(data->typedData(), tmp->typedData() + numZeros, data->size()*data->elementSize());
 			}
 
 			if ( params.processingLog )	log(*data);
